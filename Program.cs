@@ -5,7 +5,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO.Ports;
 using OwenioNet;
-
+using OwenioNet.IO;
+using OwenioNet.Exceptions;
+using OwenioNet.Types;
+using OwenioNet.DataConverter.Converter;
 
 namespace rsController
 {
@@ -13,32 +16,37 @@ namespace rsController
     {
         static void Main(string[] args)
         {
-            // стандартный интерфейс взаимодействия через ком порты
-            string portName = "COM3";
-            SerialPort serialPort = new SerialPort();
-            //serialPort.BaudRate = 115200;
-            ////serialPort.ReadTimeout = 500;
-            //serialPort.DtrEnable = false;
-            //serialPort.RtsEnable = true;
-            try
+            SerialPortAdapter port1 = new SerialPortAdapter(3, 9600, Parity.None, 8, StopBits.One);
+            port1.Open();
+            var owenProtocol = OwenProtocolMaster.Create(port1);
+            if (port1.IsOpened != true)
             {
-                serialPort.PortName = portName;
-                serialPort.Open();
-                // использование OwenioNet
-                var owenProtocol = OwenProtocolMaster.Create(new SerialPort("COM3", 9600, Parity.Even, 5, StopBits.One));  // не открывает порт
-                owenProtocol.OpenSerialPort(3, 9600, Parity.Even, 5, StopBits.One); // не открывает порт
-                if (serialPort.IsOpen)
-                    owenProtocol.OwenWrite(0x265, OwenioNet.Types.AddressLengthType.Bits11, "ab.L", new byte[] { 0x45, 0x87 });//без индекса 
-                //owenProtocol.OwenRead(0x265, OwenioNet.Types.AddressLengthType.Bits11, "ab.L");//без индекса
-                //owenProtocol.OwenWrite(0x265, OwenioNet.Types.AddressLengthType.Bits11, "ab.L", new byte[] { 0x45, 0x87 }, 0x3456);//с индексом
-                owenProtocol.CloseSerialPort();
-                Console.WriteLine("open");
-                Console.ReadLine();
+                Console.WriteLine("Ошибка открытия порта COM3: {0}", port1.ToString());
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine(ex.ToString());
-                Console.ReadLine();
+                try
+                {   
+                    var dataFromDevice = owenProtocol.OwenRead(16, AddressLengthType.Bits8, "dev");
+                    Console.WriteLine($"Value - {BitConverter.ToString(dataFromDevice)}");
+                    Console.ReadLine();
+                    port1.Close();
+                    try
+                    {
+                        var converterString = new ConverterAscii(16);
+                        var value = converterString.ConvertBack(dataFromDevice);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.ToString());
+                        Console.ReadLine();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                    Console.ReadLine();
+                }
             }
         }
     }
